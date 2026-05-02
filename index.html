@@ -110,7 +110,21 @@
         let xpPoints = 0;
 
         // --- 登入邏輯 ---
-        loginBtn.onclick = () => auth.signInWithPopup(provider);
+        // 修改這部分來抓取錯誤
+loginBtn.onclick = () => {
+    console.log("開始登入...");
+    auth.signInWithPopup(provider)
+        .then((result) => {
+            console.log("登入成功:", result.user.displayName);
+        })
+        .catch((error) => {
+            // 這句會告訴你為什麼失敗
+            alert("登入失敗原因: " + error.message);
+            console.error("Firebase Error Code:", error.code);
+            console.error("Firebase Error Message:", error.message);
+        });
+};
+
 
         auth.onAuthStateChanged(async (user) => {
             if (user) {
