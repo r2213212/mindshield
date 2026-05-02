@@ -75,7 +75,7 @@
             </div>
             
             <p style="font-size: 0.75rem; color: #6b7280; text-align: left;">
-                * 系統每 30 秒將用語音播報最新指數。<br>
+                * 系統每 15分鐘將用語音播報最新指數。<br>
                 * 專注期間每隔一段時間會自動增加 XP。
             </p>
         </div>
@@ -209,7 +209,7 @@
             focusScoreDisplay.innerText = focusIndex + "%";
 
             // 定時廣播 (30秒 = 30000毫秒)
-            if (Date.now() - lastSpeakTime > 30000) {
+            if (Date.now() - lastSpeakTime > 15*60*1000) {
                 speakScore(focusIndex);
                 lastSpeakTime = Date.now();
             }
