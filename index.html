@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MindShield AI - Ultimate Achievement Edition</title>
+    <title>MindShield AI - Ultimate Local Edition</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
@@ -11,64 +11,73 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
     
     <style>
-        body { background-color: #050a10; color: #00f2ff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 10px; }
-        .main-layout { display: flex; flex-direction: row; gap: 15px; width: 95%; max-width: 1200px; }
+        body { background-color: #050a10; color: #00f2ff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 15px; }
+        .main-layout { display: flex; flex-direction: row; gap: 15px; width: 95%; max-width: 1200px; margin-top: 10px; }
         #input_video { display: none; }
-        .monitor-screen { flex: 2; background: #000; border-radius: 20px; border: 2px solid #1f2937; position: relative; overflow: hidden; }
+        .monitor-screen { flex: 2; background: #000; border-radius: 20px; border: 2px solid #1f2937; position: relative; overflow: hidden; display: flex; justify-content: center; align-items: center;}
         canvas { width: 100%; height: auto; }
-        .sidebar { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+        .sidebar { flex: 1; display: flex; flex-direction: column; gap: 12px; }
         .card { background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 15px; text-align: center; }
         
         /* 成就系統 */
-        .xp-text { font-size: 2rem; font-weight: bold; color: #fbbf24; }
-        .level-badge { background: #fbbf24; color: #000; padding: 2px 10px; border-radius: 5px; font-weight: bold; font-size: 0.8rem; }
+        .xp-text { font-size: 2.5rem; font-weight: bold; color: #fbbf24; }
+        .level-badge { background: #fbbf24; color: #000; padding: 4px 12px; border-radius: 5px; font-weight: bold; font-size: 0.9rem; vertical-align: middle; margin-left: 10px;}
         
-        .score-large { font-size: 3rem; font-weight: 800; color: #fff; }
-        .noise-bar-bg { width: 100%; height: 8px; background: #374151; border-radius: 4px; margin-top: 10px; overflow: hidden; }
+        .score-large { font-size: 3.5rem; font-weight: 800; color: #fff; }
+        .noise-bar-bg { width: 100%; height: 10px; background: #374151; border-radius: 5px; margin-top: 10px; overflow: hidden; }
         #noise-level { height: 100%; width: 0%; background: #00ff88; transition: 0.1s; }
         
-        .btn { padding: 15px; font-size: 1.1rem; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; width: 100%; }
+        .btn { padding: 15px; font-size: 1.1rem; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; width: 100%; transition: 0.3s;}
         .btn-start { background: #00f2ff; color: #000; }
+        .btn-start:disabled { background: #374151; color: #9ca3af; cursor: not-allowed; }
         .btn-stop { background: #ef4444; color: #fff; display: none; }
-        .warning-msg { color: #ef4444; font-size: 0.8rem; font-weight: bold; margin-top: 5px; display: none; }
+        .warning-msg { color: #ef4444; font-size: 0.85rem; font-weight: bold; margin-top: 8px; display: none; animation: flash 1s infinite;}
+        @keyframes flash { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
     </style>
 </head>
 <body>
 
-    <h2 style="margin: 10px;">MINDSHIELD <span class="level-badge" id="user-level">LV.1 ROOKIE</span></h2>
+    <h2 style="margin: 0; font-size: 2rem; letter-spacing: 2px;">
+        MINDSHIELD <span class="level-badge" id="user-level">LV.1 ROOKIE</span>
+    </h2>
 
     <div class="main-layout">
         <video id="input_video"></video>
         
         <div class="monitor-screen">
             <canvas id="output_canvas" width="640" height="480"></canvas>
-            <div id="loading-txt" style="position: absolute; top: 45%; left: 35%;">AI 系統初始化中...</div>
+            <div id="loading-txt" style="position: absolute; color: #00f2ff; font-weight: bold; font-size: 1.2rem;">AI 模型初始化中 (請稍候)...</div>
         </div>
 
         <div class="sidebar">
             <div class="card">
-                <div style="font-size: 0.8rem; color: #9ca3af;">FOCUS POINTS (XP)</div>
+                <div style="font-size: 0.85rem; color: #9ca3af;">FOCUS POINTS (XP)</div>
                 <div class="xp-text" id="xp-points">0</div>
-                <div id="next-level-hint" style="font-size: 0.7rem; color: #fbbf24;">目標：500 XP 升級</div>
+                <div id="next-level-hint" style="font-size: 0.75rem; color: #fbbf24;">目標：500 XP 升級</div>
             </div>
 
             <div class="card">
-                <div style="font-size: 0.8rem; color: #9ca3af;">環境噪音 (閾值: 70)</div>
+                <div style="font-size: 0.85rem; color: #9ca3af;">環境噪音監測 (閾值: 70)</div>
                 <div class="noise-bar-bg"><div id="noise-level"></div></div>
                 <div id="noise-warning" class="warning-msg">⚠️ 環境太嘈雜！</div>
             </div>
 
             <div class="card">
-                <div style="font-size: 0.8rem; color: #9ca3af;">FOCUS INDEX</div>
+                <div style="font-size: 0.85rem; color: #9ca3af;">FOCUS INDEX</div>
                 <div class="score-large" id="focus-index">0%</div>
                 <div id="pose-warning" class="warning-msg">⚠️ 請看向鏡頭！</div>
-                <div id="phone-warning" class="warning-msg">⚠️ 檢測到手機！</div>
+                <div id="phone-warning" class="warning-msg">⚠️ 檢測到手機違禁品！</div>
             </div>
 
-            <div class="card">
-                <button class="btn btn-start" id="start-btn" disabled>開始專注</button>
-                <button class="btn btn-stop" id="stop-btn">結束</button>
+            <div class="card" style="background: transparent; border: none; padding: 0;">
+                <button class="btn btn-start" id="start-btn" disabled>開始專注 Session</button>
+                <button class="btn btn-stop" id="stop-btn">結束並結算</button>
             </div>
+            
+            <p style="font-size: 0.75rem; color: #6b7280; text-align: left;">
+                * 系統每 30 秒將用語音播報最新指數。<br>
+                * 專注期間每隔一段時間會自動增加 XP。
+            </p>
         </div>
     </div>
 
@@ -94,13 +103,18 @@
         let audioContext, analyser, currentVolume = 0;
         const NOISE_THRESHOLD = 70;
 
+        // 1. 初始化 AI 模型
         async function init() {
-            phoneModel = await cocoSsd.load();
-            document.getElementById('loading-txt').style.display = "none";
-            startBtn.disabled = false;
+            try {
+                phoneModel = await cocoSsd.load();
+                document.getElementById('loading-txt').style.display = "none";
+                startBtn.disabled = false;
+            } catch (error) {
+                document.getElementById('loading-txt').innerText = "模型載入失敗，請檢查網絡";
+            }
         }
 
-        // --- 噪音檢測 ---
+        // 2. 噪音檢測設定
         async function setupAudio() {
             try {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -117,15 +131,18 @@
                     let sum = 0;
                     for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
                     currentVolume = Math.round(sum / dataArray.length);
+                    
                     noiseBar.style.width = Math.min(currentVolume, 100) + "%";
                     noiseBar.style.background = currentVolume > NOISE_THRESHOLD ? "#ef4444" : "#00ff88";
                     noiseWarning.style.display = currentVolume > NOISE_THRESHOLD ? "block" : "none";
+                    
                     requestAnimationFrame(updateVolume);
                 };
                 updateVolume();
-            } catch (err) { console.warn("Mic error:", err); }
+            } catch (err) { console.warn("無法取得麥克風權限", err); }
         }
 
+        // 3. Pose 檢測與核心邏輯
         const pose = new Pose({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}` });
         pose.setOptions({ modelComplexity: 1, minDetectionConfidence: 0.5 });
         
@@ -133,7 +150,7 @@
             if (!isMonitoring) return;
             totalFrames++;
 
-            // 1. 電話偵測與動態框
+            // 電話偵測與動態框 (每 5 幀檢測一次以節省效能)
             if (totalFrames % 5 === 0) {
                 const predictions = await phoneModel.detect(videoElement);
                 const phone = predictions.find(p => p.class === 'cell phone' && p.score > 0.6);
@@ -142,14 +159,18 @@
 
             canvasCtx.save();
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            // 鏡像翻轉
             canvasCtx.translate(canvasElement.width, 0);
             canvasCtx.scale(-1, 1);
 
             let isUserFacingCamera = true;
+            
             if (results.poseLandmarks) {
+                // 畫骨架
                 drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00f2ff', lineWidth: 2});
-                // 面部朝向邏輯
-                const nose = results.poseLandmarks[0];
+                drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#fff', lineWidth: 1, radius: 2});
+                
+                // 面部朝向邏輯 (檢查雙眼可視度)
                 const leftEye = results.poseLandmarks[3];
                 const rightEye = results.poseLandmarks[6];
                 if (leftEye.visibility < 0.7 || rightEye.visibility < 0.7) {
@@ -160,9 +181,10 @@
                 }
             } else {
                 isUserFacingCamera = false;
+                poseWarning.style.display = "block";
             }
 
-            // 2. 畫手機追蹤框
+            // 畫手機追蹤框
             if (currentPhoneBox) {
                 canvasCtx.strokeStyle = "#ef4444";
                 canvasCtx.lineWidth = 4;
@@ -172,52 +194,69 @@
                 phoneWarning.style.display = "none";
             }
 
-            // 3. 綜合判定與加分
+            // 綜合判定與加分
             if (!currentPhoneBox && isUserFacingCamera && currentVolume <= NOISE_THRESHOLD) {
                 focusedFrames++;
-                // 專注加 XP
+                // 專注狀態下，每 30 幀 (約 1 秒) 加 5 XP
                 if (totalFrames % 30 === 0) {
                     xpPoints += 5;
                     updateXP();
                 }
             }
 
+            // 更新 Focus Index
             let focusIndex = Math.round((focusedFrames / totalFrames) * 100);
             focusScoreDisplay.innerText = focusIndex + "%";
 
-            // 4. 定時廣播 (30秒)
+            // 定時廣播 (30秒 = 30000毫秒)
             if (Date.now() - lastSpeakTime > 30000) {
                 speakScore(focusIndex);
                 lastSpeakTime = Date.now();
             }
+            
             canvasCtx.restore();
         });
 
+        // 4. 更新成就等級 UI
         function updateXP() {
             xpDisplay.innerText = xpPoints;
-            if (xpPoints > 1000) {
+            if (xpPoints >= 1000) {
                 levelDisplay.innerText = "LV.3 MASTER";
-                levelDisplay.style.background = "#8b5cf6";
-            } else if (xpPoints > 500) {
+                levelDisplay.style.background = "#8b5cf6"; // 紫色
+                document.getElementById('next-level-hint').innerText = "已達最高等級！";
+            } else if (xpPoints >= 500) {
                 levelDisplay.innerText = "LV.2 ELITE";
-                levelDisplay.style.background = "#3b82f6";
+                levelDisplay.style.background = "#3b82f6"; // 藍色
+                document.getElementById('next-level-hint').innerText = "目標：1000 XP 升級";
             }
         }
 
+        // 5. 語音廣播
         function speakScore(score) {
-            const text = `MindShield 提醒，專注指數係百分之 ${score}。`;
+            window.speechSynthesis.cancel(); // 停止之前未講完嘅語音
+            const text = `MindShield 報告，目前專注指數百分之 ${score}。`;
             const msg = new SpeechSynthesisUtterance(text);
             msg.lang = 'zh-HK';
+            msg.rate = 1.0;
+            window.speechSynthesis.resume(); // 修復 Chrome 語音 Bug
             window.speechSynthesis.speak(msg);
         }
 
+        // 6. 按鈕控制
         startBtn.onclick = () => {
             isMonitoring = true;
             startBtn.style.display = "none";
             stopBtn.style.display = "block";
             lastSpeakTime = Date.now();
-            if (!audioContext) setupAudio();
-            else audioContext.resume();
+            
+            // 啟動音頻
+            if (!audioContext) {
+                setupAudio();
+            } else {
+                audioContext.resume();
+            }
+            
+            // 啟動鏡頭
             if (!camera) {
                 camera = new Camera(videoElement, {
                     onFrame: async () => { if(isMonitoring) await pose.send({image: videoElement}); },
@@ -227,7 +266,14 @@
             }
         };
 
-        stopBtn.onclick = () => { location.reload(); };
+        stopBtn.onclick = () => {
+            isMonitoring = false;
+            // 彈出結算視窗後重新載入網頁
+            alert(`MindShield 結算報告\n\n獲得總積分：${xpPoints} XP\n最終專注度：${focusScoreDisplay.innerText}`);
+            location.reload(); 
+        };
+
+        // 啟動程式
         init();
     </script>
 </body>
