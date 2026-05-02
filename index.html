@@ -182,7 +182,7 @@
             focusScoreDisplay.innerText = focusIndex + "%";
 
             // 4. 語音播報 (每 30 秒)
-            if (Date.now() - lastSpeakTime > 30000) {
+            if (Date.now() - lastSpeakTime > 15*60*1000) {
                 speakScore(focusIndex);
                 lastSpeakTime = Date.now();
             }
