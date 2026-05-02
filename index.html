@@ -84,6 +84,7 @@
     </div>
 
     <script>
+        import { initializeApp } from "firebase/app";
         // --- Firebase 設定 (請換成你的 Config) ---
         const firebaseConfig = {
             apiKey: "AIzaSyD_TrHHTZ3jaLT5xYDm8LnVw893ls5oAOY",
@@ -93,6 +94,7 @@
             messagingSenderId: "540337825842",
             appId: "1:540337825842:web:77f9add5336be3e0f8742b"
         };
+        const app = initializeApp(firebaseConfig);
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
