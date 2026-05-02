@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MindShield AI - Control Panel</title>
+    <title>MindShield AI - Achievement Edition</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
@@ -11,153 +11,75 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
     
     <style>
-        body { 
-            background-color: #0a1118; 
-            color: #00f2ff; 
-            font-family: 'Segoe UI', system-ui, sans-serif; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            padding: 20px;
-            margin: 0;
-        }
-
-        /* 頂部標題 */
-        .header { text-align: center; margin-bottom: 20px; }
-        h1 { margin: 0; letter-spacing: 3px; font-weight: 700; }
-        .tagline { color: #8b949e; font-size: 0.9rem; }
-
-        /* 主容器 */
-        .main-layout {
-            display: flex;
-            flex-direction: row;
-            gap: 20px;
-            width: 100%;
-            max-width: 1100px;
-        }
-
+        body { background-color: #050a10; color: #00f2ff; font-family: 'Segoe UI', system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 15px; }
+        .header { text-align: center; margin-bottom: 15px; }
+        h1 { margin: 0; letter-spacing: 2px; font-size: 2rem; }
+        
+        .main-layout { display: flex; flex-direction: row; gap: 15px; width: 100%; max-width: 1200px; }
         #input_video { display: none; }
 
-        /* 畫布區域 */
-        .monitor-screen {
-            flex: 2;
-            position: relative;
-            background: #000;
-            border-radius: 20px;
-            border: 2px solid #1f2937;
-            overflow: hidden;
-            box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
+        /* 監控區域 */
+        .monitor-screen { flex: 2; background: #000; border-radius: 20px; border: 2px solid #1f2937; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        canvas { width: 100%; height: auto; }
+
+        /* 右側控制台 */
+        .sidebar { flex: 1; display: flex; flex-direction: column; gap: 12px; }
+        .card { background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 15px; text-align: center; }
         
-        canvas { width: 100%; height: auto; display: block; }
+        /* 成就系統樣式 */
+        .xp-text { font-size: 2rem; font-weight: bold; color: #fbbf24; }
+        .level-badge { background: #fbbf24; color: #000; padding: 2px 10px; border-radius: 5px; font-weight: bold; font-size: 0.8rem; }
+        .score-large { font-size: 3rem; font-weight: 800; color: #fff; }
 
-        /* 控制台 */
-        .control-panel {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
+        /* 按鈕 */
+        .btn { padding: 12px; font-size: 1rem; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; width: 100%; transition: 0.3s; }
+        .btn-start { background: #00f2ff; color: #000; }
+        .btn-stop { background: transparent; border: 1px solid #ef4444; color: #ef4444; margin-top: 8px; }
+        .btn-start:disabled { background: #374151; color: #9ca3af; }
 
-        .card {
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 15px;
-            padding: 20px;
-            text-align: center;
-        }
+        .warning-msg { color: #ef4444; font-weight: bold; display: none; margin-top: 5px; animation: flash 0.8s infinite; }
+        @keyframes flash { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
-        .score-display { font-size: 3.5rem; font-weight: 800; color: #fff; text-shadow: 0 0 10px rgba(0, 242, 255, 0.5); }
-
-        /* 按鈕樣式 */
-        .btn {
-            padding: 15px 30px;
-            font-size: 1.1rem;
-            font-weight: bold;
-            border-radius: 50px;
-            border: none;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            width: 100%;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #00f2ff 0%, #0066ff 100%);
-            color: #000;
-            box-shadow: 0 0 20px rgba(0, 242, 255, 0.3);
-        }
-
-        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 0 30px rgba(0, 242, 255, 0.5); }
-        .btn-primary:active { transform: translateY(0); }
-        .btn-primary:disabled { background: #30363d; color: #8b949e; cursor: not-allowed; }
-
-        .btn-stop {
-            background: transparent;
-            border: 2px solid #ff4d4d;
-            color: #ff4d4d;
-            margin-top: 10px;
-        }
-
-        .btn-stop:hover { background: #ff4d4d; color: #fff; }
-
-        .status-badge {
-            display: inline-block;
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            margin-bottom: 10px;
-            background: #21262d;
-        }
-
-        .warning-text { color: #ff4d4d; font-weight: bold; margin-top: 10px; display: none; animation: pulse 1s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-
-        /* 手機適應 */
-        @media (max-width: 850px) {
-            .main-layout { flex-direction: column; }
-        }
+        @media (max-width: 900px) { .main-layout { flex-direction: column; } }
     </style>
 </head>
 <body>
 
     <div class="header">
-        <h1>MINDSHIELD</h1>
-        <div class="tagline">AI Powered Focus Guardian</div>
+        <h1>MINDSHIELD <span class="level-badge" id="user-level">LV.1 ROOKIE</span></h1>
     </div>
 
     <div class="main-layout">
         <video id="input_video"></video>
         
         <div class="monitor-screen">
-            <div id="placeholder-text" style="position: absolute; color: #30363d; text-align: center;">
-                <p>SYSTEM STANDBY</p>
-                <small>Ready to monitor your session</small>
-            </div>
             <canvas id="output_canvas" width="640" height="480"></canvas>
+            <div id="loading-overlay" style="position: absolute; background: rgba(0,0,0,0.8); width:100%; height:100%; display:flex; align-items:center; justify-content:center;">
+                AI 模型載入中...
+            </div>
         </div>
 
-        <div class="control-panel">
+        <div class="sidebar">
             <div class="card">
-                <div class="status-badge" id="ai-status">MODELS LOADING...</div>
-                <div style="font-size: 0.8rem; color: #8b949e; margin-bottom: 5px;">CURRENT FOCUS INDEX</div>
-                <div class="score-display" id="focus-index">0%</div>
-                <div id="phone-warning" class="warning-text">⚠️ DETECTED PHONE</div>
+                <div style="font-size: 0.8rem; color: #9ca3af;">FOCUS POINTS (XP)</div>
+                <div class="xp-text" id="xp-points">0</div>
+                <div style="font-size: 0.7rem; color: #fbbf24;" id="next-level">Next Level: 500 XP</div>
+            </div>
+
+            <div class="card">
+                <div style="font-size: 0.8rem; color: #9ca3af;">FOCUS INDEX</div>
+                <div class="score-large" id="focus-index">0%</div>
+                <div id="phone-warning" class="warning-msg">⚠️ DETECTED MOBILE PHONE</div>
             </div>
 
             <div class="card" style="background: transparent; border: none; padding: 0;">
-                <button class="btn btn-primary" id="start-btn" disabled>Start Monitoring</button>
-                <button class="btn btn-stop" id="stop-btn" style="display: none;">End Session</button>
+                <button class="btn btn-start" id="start-btn" disabled>開始專注模式</button>
+                <button class="btn btn-stop" id="stop-btn" style="display: none;">結束 Session</button>
             </div>
 
-            <div class="card" style="font-size: 0.75rem; color: #8b949e; text-align: left;">
-                • <b>Privacy:</b> 100% On-device processing.<br>
-                • <b>Detection:</b> Posture + Object recognition.<br>
-                • <b>Goal:</b> Keep Focus Index > 80%.
+            <div class="card" style="text-align: left; font-size: 0.75rem; color: #6b7280;">
+                📢 系統會每隔一段時間語音播報指數。<br>
+                📱 手機監測已開啟動態追蹤。
             </div>
         </div>
     </div>
@@ -168,31 +90,30 @@
         const canvasCtx = canvasElement.getContext('2d');
         const startBtn = document.getElementById('start-btn');
         const stopBtn = document.getElementById('stop-btn');
-        const aiStatus = document.getElementById('ai-status');
         const focusScoreDisplay = document.getElementById('focus-index');
+        const xpDisplay = document.getElementById('xp-points');
+        const levelDisplay = document.getElementById('user-level');
         const phoneWarning = document.getElementById('phone-warning');
-        const placeholder = document.getElementById('placeholder-text');
+        const loadingOverlay = document.getElementById('loading-overlay');
 
         let totalFrames = 0;
         let focusedFrames = 0;
+        let xpPoints = 0;
         let phoneModel;
-        let isPhonePresent = false;
+        let currentPhoneBox = null;
         let isMonitoring = false;
+        let lastSpeakTime = 0;
         let camera = null;
 
-        // 1. 初始化 AI 模型
-        async function initAI() {
-            try {
-                phoneModel = await cocoSsd.load();
-                aiStatus.innerText = "SYSTEM READY";
-                aiStatus.style.color = "#00f2ff";
-                startBtn.disabled = false;
-            } catch (e) {
-                aiStatus.innerText = "ERROR LOADING MODELS";
-            }
+        // 語音播報設定 (毫秒，測試建議設為 30000 即 30秒，正式版可改為 15*60*1000)
+        const SPEAK_INTERVAL = 30000; 
+
+        async function init() {
+            phoneModel = await cocoSsd.load();
+            loadingOverlay.style.display = "none";
+            startBtn.disabled = false;
         }
 
-        // 2. Pose 檢測邏輯
         const pose = new Pose({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
         });
@@ -204,10 +125,11 @@
 
             totalFrames++;
 
-            // 電話檢測
-            if (totalFrames % 6 === 0) {
+            // 1. 手機偵測與框位更新
+            if (totalFrames % 5 === 0) {
                 const predictions = await phoneModel.detect(videoElement);
-                isPhonePresent = predictions.some(p => p.class === 'cell phone' && p.score > 0.6);
+                const phone = predictions.find(p => p.class === 'cell phone' && p.score > 0.6);
+                currentPhoneBox = phone ? phone.bbox : null;
             }
 
             canvasCtx.save();
@@ -215,40 +137,66 @@
             canvasCtx.translate(canvasElement.width, 0);
             canvasCtx.scale(-1, 1);
 
+            // 2. 畫骨架
             if (results.poseLandmarks) {
                 drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00f2ff', lineWidth: 2});
                 drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#fff', lineWidth: 1, radius: 2});
-                
-                if (!isPhonePresent) {
-                    focusedFrames++;
-                    phoneWarning.style.display = "none";
-                } else {
-                    phoneWarning.style.display = "block";
-                    canvasCtx.strokeStyle = "#ff4d4d";
-                    canvasCtx.lineWidth = 5;
-                    canvasCtx.strokeRect(100, 100, 440, 280); 
+            }
+
+            // 3. 處理手機警告及框位跟隨
+            if (currentPhoneBox) {
+                phoneWarning.style.display = "block";
+                // 畫出跟隨手機的紅框 (注意：因為做了鏡像，x軸座標需要轉換)
+                canvasCtx.strokeStyle = "#ef4444";
+                canvasCtx.lineWidth = 4;
+                canvasCtx.strokeRect(currentPhoneBox[0], currentPhoneBox[1], currentPhoneBox[2], currentPhoneBox[3]);
+            } else {
+                focusedFrames++;
+                phoneWarning.style.display = "none";
+                // 專注時加 XP (每秒約加 1-2 分)
+                if (totalFrames % 30 === 0) {
+                    xpPoints += 5;
+                    updateAchievements();
                 }
             }
 
             let focusIndex = Math.round((focusedFrames / totalFrames) * 100);
             focusScoreDisplay.innerText = focusIndex + "%";
+
+            // 4. 定時語音播報
+            let now = Date.now();
+            if (now - lastSpeakTime > SPEAK_INTERVAL) {
+                speakScore(focusIndex);
+                lastSpeakTime = now;
+            }
+
             canvasCtx.restore();
         });
 
-        // 3. 按鈕事件
+        function updateAchievements() {
+            xpDisplay.innerText = xpPoints;
+            if (xpPoints > 1000) {
+                levelDisplay.innerText = "LV.3 FOCUS MASTER";
+                levelDisplay.style.background = "#8b5cf6";
+            } else if (xpPoints > 500) {
+                levelDisplay.innerText = "LV.2 ELITE";
+                levelDisplay.style.background = "#3b82f6";
+            }
+        }
+
+        function speakScore(score) {
+            const text = `MindShield 提醒你，你目前的專注指數係百分之 ${score}。`;
+            const msg = new SpeechSynthesisUtterance(text);
+            msg.lang = 'zh-HK';
+            msg.rate = 0.9;
+            window.speechSynthesis.speak(msg);
+        }
+
         startBtn.onclick = () => {
             isMonitoring = true;
-            placeholder.style.display = "none";
             startBtn.style.display = "none";
             stopBtn.style.display = "block";
-            aiStatus.innerText = "LIVE MONITORING";
-            aiStatus.style.color = "#00ff88";
-
-            // 重置數據
-            totalFrames = 0;
-            focusedFrames = 0;
-            focusScoreDisplay.innerText = "0%";
-
+            lastSpeakTime = Date.now();
             if (!camera) {
                 camera = new Camera(videoElement, {
                     onFrame: async () => { if(isMonitoring) await pose.send({image: videoElement}); },
@@ -260,18 +208,13 @@
 
         stopBtn.onclick = () => {
             isMonitoring = false;
-            placeholder.style.display = "block";
             startBtn.style.display = "block";
             stopBtn.style.display = "none";
-            aiStatus.innerText = "SESSION ENDED";
-            aiStatus.style.color = "#8b949e";
-            
-            // 結束後清除畫布
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            alert(`Session Complete!\nFinal Focus Index: ${focusScoreDisplay.innerText}`);
+            alert(`專注結束！\n獲得總積分：${xpPoints} XP\n最終專注度：${focusScoreDisplay.innerText}`);
         };
 
-        initAI();
+        init();
     </script>
 </body>
 </html>
