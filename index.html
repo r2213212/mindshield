@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MindShield AI - Full Sensor Edition</title>
+    <title>MindShield AI - Ultimate Achievement Edition</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
@@ -18,34 +18,42 @@
         canvas { width: 100%; height: auto; }
         .sidebar { flex: 1; display: flex; flex-direction: column; gap: 10px; }
         .card { background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 15px; text-align: center; }
-        .score-large { font-size: 3rem; font-weight: 800; color: #fff; }
         
-        /* 噪音計 */
-        .noise-bar-bg { width: 100%; height: 10px; background: #374151; border-radius: 5px; margin-top: 10px; overflow: hidden; }
+        /* 成就系統 */
+        .xp-text { font-size: 2rem; font-weight: bold; color: #fbbf24; }
+        .level-badge { background: #fbbf24; color: #000; padding: 2px 10px; border-radius: 5px; font-weight: bold; font-size: 0.8rem; }
+        
+        .score-large { font-size: 3rem; font-weight: 800; color: #fff; }
+        .noise-bar-bg { width: 100%; height: 8px; background: #374151; border-radius: 4px; margin-top: 10px; overflow: hidden; }
         #noise-level { height: 100%; width: 0%; background: #00ff88; transition: 0.1s; }
         
         .btn { padding: 15px; font-size: 1.1rem; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; width: 100%; }
         .btn-start { background: #00f2ff; color: #000; }
         .btn-stop { background: #ef4444; color: #fff; display: none; }
         .warning-msg { color: #ef4444; font-size: 0.8rem; font-weight: bold; margin-top: 5px; display: none; }
-        .level-tag { background: #fbbf24; color: #000; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; }
     </style>
 </head>
 <body>
 
-    <h2 style="margin: 10px;">MINDSHIELD <span class="level-tag">V6.0 PRO</span></h2>
+    <h2 style="margin: 10px;">MINDSHIELD <span class="level-badge" id="user-level">LV.1 ROOKIE</span></h2>
 
     <div class="main-layout">
         <video id="input_video"></video>
         
         <div class="monitor-screen">
             <canvas id="output_canvas" width="640" height="480"></canvas>
-            <div id="loading-txt" style="position: absolute; top: 45%; left: 35%;">AI 系統啟動中...</div>
+            <div id="loading-txt" style="position: absolute; top: 45%; left: 35%;">AI 系統初始化中...</div>
         </div>
 
         <div class="sidebar">
             <div class="card">
-                <div style="font-size: 0.8rem; color: #9ca3af;">環境噪音 (MAX: 70)</div>
+                <div style="font-size: 0.8rem; color: #9ca3af;">FOCUS POINTS (XP)</div>
+                <div class="xp-text" id="xp-points">0</div>
+                <div id="next-level-hint" style="font-size: 0.7rem; color: #fbbf24;">目標：500 XP 升級</div>
+            </div>
+
+            <div class="card">
+                <div style="font-size: 0.8rem; color: #9ca3af;">環境噪音 (閾值: 70)</div>
                 <div class="noise-bar-bg"><div id="noise-level"></div></div>
                 <div id="noise-warning" class="warning-msg">⚠️ 環境太嘈雜！</div>
             </div>
@@ -58,11 +66,9 @@
             </div>
 
             <div class="card">
-                <button class="btn btn-start" id="start-btn" disabled>開始監控 (及開啟語音)</button>
-                <button class="btn btn-stop" id="stop-btn">結束 Session</button>
+                <button class="btn btn-start" id="start-btn" disabled>開始專注</button>
+                <button class="btn btn-stop" id="stop-btn">結束</button>
             </div>
-            
-            <p style="font-size: 0.7rem; color: #4b5563;">*註：語音每 30 秒播報一次。請確保喇叭已開啟。</p>
         </div>
     </div>
 
@@ -72,6 +78,9 @@
         const canvasCtx = canvasElement.getContext('2d');
         const startBtn = document.getElementById('start-btn');
         const stopBtn = document.getElementById('stop-btn');
+        
+        const xpDisplay = document.getElementById('xp-points');
+        const levelDisplay = document.getElementById('user-level');
         const focusScoreDisplay = document.getElementById('focus-index');
         const noiseBar = document.getElementById('noise-level');
         
@@ -79,14 +88,11 @@
         const poseWarning = document.getElementById('pose-warning');
         const noiseWarning = document.getElementById('noise-warning');
 
-        let totalFrames = 0, focusedFrames = 0;
+        let totalFrames = 0, focusedFrames = 0, xpPoints = 0;
         let phoneModel, isMonitoring = false, camera = null;
-        let lastSpeakTime = 0, isPhonePresent = false;
-        
-        // 噪音檢測變數
-        let audioContext, analyser, microphone, javascriptNode;
-        let currentVolume = 0;
-        const NOISE_THRESHOLD = 70; // 噪音閾值
+        let lastSpeakTime = 0, currentPhoneBox = null;
+        let audioContext, analyser, currentVolume = 0;
+        const NOISE_THRESHOLD = 70;
 
         async function init() {
             phoneModel = await cocoSsd.load();
@@ -94,40 +100,30 @@
             startBtn.disabled = false;
         }
 
-        // 初始化語音 (解決聽唔到問題)
-        function forceLoadVoices() {
-            window.speechSynthesis.getVoices();
-        }
-
-        // --- 噪音檢測邏輯 ---
+        // --- 噪音檢測 ---
         async function setupAudio() {
             try {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                microphone = audioContext.createMediaStreamSource(stream);
+                const microphone = audioContext.createMediaStreamSource(stream);
                 analyser = audioContext.createAnalyser();
                 analyser.fftSize = 256;
                 microphone.connect(analyser);
-
-                const bufferLength = analyser.frequencyBinCount;
-                const dataArray = new Uint8Array(bufferLength);
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
                 const updateVolume = () => {
                     if (!isMonitoring) return;
                     analyser.getByteFrequencyData(dataArray);
                     let sum = 0;
-                    for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
-                    currentVolume = Math.round(sum / bufferLength);
-                    
-                    // 更新 UI
+                    for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+                    currentVolume = Math.round(sum / dataArray.length);
                     noiseBar.style.width = Math.min(currentVolume, 100) + "%";
                     noiseBar.style.background = currentVolume > NOISE_THRESHOLD ? "#ef4444" : "#00ff88";
                     noiseWarning.style.display = currentVolume > NOISE_THRESHOLD ? "block" : "none";
-                    
                     requestAnimationFrame(updateVolume);
                 };
                 updateVolume();
-            } catch (err) { console.error("Microphone access denied", err); }
+            } catch (err) { console.warn("Mic error:", err); }
         }
 
         const pose = new Pose({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}` });
@@ -137,10 +133,11 @@
             if (!isMonitoring) return;
             totalFrames++;
 
-            // 1. 電話偵測
-            if (totalFrames % 6 === 0) {
+            // 1. 電話偵測與動態框
+            if (totalFrames % 5 === 0) {
                 const predictions = await phoneModel.detect(videoElement);
-                isPhonePresent = predictions.some(p => p.class === 'cell phone' && p.score > 0.6);
+                const phone = predictions.find(p => p.class === 'cell phone' && p.score > 0.6);
+                currentPhoneBox = phone ? phone.bbox : null;
             }
 
             canvasCtx.save();
@@ -148,57 +145,69 @@
             canvasCtx.translate(canvasElement.width, 0);
             canvasCtx.scale(-1, 1);
 
-            let isUserFocused = true;
-
+            let isUserFacingCamera = true;
             if (results.poseLandmarks) {
                 drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00f2ff', lineWidth: 2});
-                
-                // 2. 檢測是否朝向鏡頭 (Logic: 眼睛同耳仔嘅 visibility)
+                // 面部朝向邏輯
+                const nose = results.poseLandmarks[0];
                 const leftEye = results.poseLandmarks[3];
                 const rightEye = results.poseLandmarks[6];
-                const nose = results.poseLandmarks[0];
-                
-                // 如果睇唔到其中一隻眼，或者個鼻唔喺中間，代表側咗頭
-                const eyeDist = Math.abs(leftEye.x - rightEye.x);
-                if (leftEye.visibility < 0.7 || rightEye.visibility < 0.7 || eyeDist < 0.05) {
-                    isUserFocused = false;
+                if (leftEye.visibility < 0.7 || rightEye.visibility < 0.7) {
+                    isUserFacingCamera = false;
                     poseWarning.style.display = "block";
                 } else {
                     poseWarning.style.display = "none";
                 }
             } else {
-                isUserFocused = false; // 冇人喺鏡頭前
+                isUserFacingCamera = false;
             }
 
-            // 3. 綜合判定 (電話、朝向、噪音)
-            if (isPhonePresent || !isUserFocused || currentVolume > NOISE_THRESHOLD) {
-                phoneWarning.style.display = isPhonePresent ? "block" : "none";
-                // 唔加分 = 變相減低 index
+            // 2. 畫手機追蹤框
+            if (currentPhoneBox) {
+                canvasCtx.strokeStyle = "#ef4444";
+                canvasCtx.lineWidth = 4;
+                canvasCtx.strokeRect(currentPhoneBox[0], currentPhoneBox[1], currentPhoneBox[2], currentPhoneBox[3]);
+                phoneWarning.style.display = "block";
             } else {
+                phoneWarning.style.display = "none";
+            }
+
+            // 3. 綜合判定與加分
+            if (!currentPhoneBox && isUserFacingCamera && currentVolume <= NOISE_THRESHOLD) {
                 focusedFrames++;
+                // 專注加 XP
+                if (totalFrames % 30 === 0) {
+                    xpPoints += 5;
+                    updateXP();
+                }
             }
 
             let focusIndex = Math.round((focusedFrames / totalFrames) * 100);
             focusScoreDisplay.innerText = focusIndex + "%";
 
-            // 4. 語音播報 (每 30 秒)
-            if (Date.now() - lastSpeakTime > 15*60*1000) {
+            // 4. 定時廣播 (30秒)
+            if (Date.now() - lastSpeakTime > 30000) {
                 speakScore(focusIndex);
                 lastSpeakTime = Date.now();
             }
             canvasCtx.restore();
         });
 
+        function updateXP() {
+            xpDisplay.innerText = xpPoints;
+            if (xpPoints > 1000) {
+                levelDisplay.innerText = "LV.3 MASTER";
+                levelDisplay.style.background = "#8b5cf6";
+            } else if (xpPoints > 500) {
+                levelDisplay.innerText = "LV.2 ELITE";
+                levelDisplay.style.background = "#3b82f6";
+            }
+        }
+
         function speakScore(score) {
-            window.speechSynthesis.cancel(); // 先停止之前未讀完嘅
-            const text = `MindShield 報告：你而家嘅專注指數係百分之 ${score}。`;
+            const text = `MindShield 提醒，專注指數係百分之 ${score}。`;
             const msg = new SpeechSynthesisUtterance(text);
             msg.lang = 'zh-HK';
-            msg.volume = 1;
-            msg.rate = 1;
-            
-            // 語音修復關鍵：resume
-            window.speechSynthesis.resume();
             window.speechSynthesis.speak(msg);
         }
 
@@ -206,13 +215,9 @@
             isMonitoring = true;
             startBtn.style.display = "none";
             stopBtn.style.display = "block";
-            
-            // 必須喺 Click 事件內啟動 AudioContext 同 語音
+            lastSpeakTime = Date.now();
             if (!audioContext) setupAudio();
             else audioContext.resume();
-            
-            speakScore(0); // 測試語音
-            
             if (!camera) {
                 camera = new Camera(videoElement, {
                     onFrame: async () => { if(isMonitoring) await pose.send({image: videoElement}); },
@@ -223,9 +228,7 @@
         };
 
         stopBtn.onclick = () => { location.reload(); };
-
         init();
-        forceLoadVoices();
     </script>
 </body>
 </html>
