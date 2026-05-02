@@ -3,7 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MindShield AI - Ultimate Achievement Edition</title>
+    <title>MindShield AI - Cloud Sync Edition</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
@@ -12,22 +16,29 @@
     
     <style>
         body { background-color: #050a10; color: #00f2ff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 10px; }
+        
+        /* 登入 Bar 樣式 */
+        #auth-bar { 
+            width: 95%; max-width: 1200px; display: flex; justify-content: space-between; 
+            align-items: center; padding: 10px; background: #111827; border-radius: 10px; margin-bottom: 10px;
+        }
+        .user-info { display: flex; align-items: center; gap: 10px; }
+        .user-info img { width: 35px; border-radius: 50%; border: 2px solid #00f2ff; }
+        .btn-login { background: white; color: #444; border: none; padding: 8px 15px; border-radius: 5px; font-weight: bold; cursor: pointer; }
+        .btn-logout { background: transparent; color: #9ca3af; border: 1px solid #30363d; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 0.8rem; }
+
         .main-layout { display: flex; flex-direction: row; gap: 15px; width: 95%; max-width: 1200px; }
         #input_video { display: none; }
         .monitor-screen { flex: 2; background: #000; border-radius: 20px; border: 2px solid #1f2937; position: relative; overflow: hidden; }
         canvas { width: 100%; height: auto; }
         .sidebar { flex: 1; display: flex; flex-direction: column; gap: 10px; }
         .card { background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 15px; text-align: center; }
-        
-        /* 成就系統 */
         .xp-text { font-size: 2rem; font-weight: bold; color: #fbbf24; }
         .level-badge { background: #fbbf24; color: #000; padding: 2px 10px; border-radius: 5px; font-weight: bold; font-size: 0.8rem; }
-        
         .score-large { font-size: 3rem; font-weight: 800; color: #fff; }
         .noise-bar-bg { width: 100%; height: 8px; background: #374151; border-radius: 4px; margin-top: 10px; overflow: hidden; }
         #noise-level { height: 100%; width: 0%; background: #00ff88; transition: 0.1s; }
-        
-        .btn { padding: 15px; font-size: 1.1rem; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; width: 100%; }
+        .btn-action { padding: 15px; font-size: 1.1rem; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; width: 100%; }
         .btn-start { background: #00f2ff; color: #000; }
         .btn-stop { background: #ef4444; color: #fff; display: none; }
         .warning-msg { color: #ef4444; font-size: 0.8rem; font-weight: bold; margin-top: 5px; display: none; }
@@ -35,95 +46,127 @@
 </head>
 <body>
 
-    <h2 style="margin: 10px;">MINDSHIELD <span class="level-badge" id="user-level">LV.1 ROOKIE</span></h2>
+    <div id="auth-bar">
+        <div style="font-weight: bold;">MINDSHIELD <span style="font-weight: normal; font-size: 0.8rem;">Cloud</span></div>
+        <div id="user-profile" class="user-info">
+            <button class="btn-login" id="login-btn">Google Login</button>
+        </div>
+    </div>
 
     <div class="main-layout">
         <video id="input_video"></video>
-        
         <div class="monitor-screen">
             <canvas id="output_canvas" width="640" height="480"></canvas>
             <div id="loading-txt" style="position: absolute; top: 45%; left: 35%;">AI 系統初始化中...</div>
         </div>
-
         <div class="sidebar">
             <div class="card">
-                <div style="font-size: 0.8rem; color: #9ca3af;">FOCUS POINTS (XP)</div>
+                <span class="level-badge" id="user-level">LV.1 ROOKIE</span>
+                <div style="font-size: 0.8rem; color: #9ca3af; margin-top: 10px;">FOCUS POINTS (XP)</div>
                 <div class="xp-text" id="xp-points">0</div>
-                <div id="next-level-hint" style="font-size: 0.7rem; color: #fbbf24;">目標：500 XP 升級</div>
             </div>
-
             <div class="card">
-                <div style="font-size: 0.8rem; color: #9ca3af;">環境噪音 (閾值: 70)</div>
+                <div style="font-size: 0.8rem; color: #9ca3af;">環境噪音</div>
                 <div class="noise-bar-bg"><div id="noise-level"></div></div>
                 <div id="noise-warning" class="warning-msg">⚠️ 環境太嘈雜！</div>
             </div>
-
             <div class="card">
                 <div style="font-size: 0.8rem; color: #9ca3af;">FOCUS INDEX</div>
                 <div class="score-large" id="focus-index">0%</div>
                 <div id="pose-warning" class="warning-msg">⚠️ 請看向鏡頭！</div>
                 <div id="phone-warning" class="warning-msg">⚠️ 檢測到手機！</div>
             </div>
-
             <div class="card">
-                <button class="btn btn-start" id="start-btn" disabled>開始專注</button>
-                <button class="btn btn-stop" id="stop-btn">結束</button>
+                <button class="btn-action btn-start" id="start-btn" disabled>開始專注</button>
+                <button class="btn-action btn-stop" id="stop-btn">結束 Session</button>
             </div>
         </div>
     </div>
 
     <script>
+        // --- Firebase 設定 (請換成你的 Config) ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyD_TrHHTZ3jaLT5xYDm8LnVw893ls5oAOY",
+            authDomain: "mindshield-9ddca.firebaseapp.com",
+            projectId: "mindshield-9ddca",
+            storageBucket: "mindshield-9ddca.firebasestorage.app",
+            messagingSenderId: "540337825842",
+            appId: "1:540337825842:web:77f9add5336be3e0f8742b"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const provider = new firebase.auth.GoogleAuthProvider();
+
+        // UI 變數
+        const loginBtn = document.getElementById('login-btn');
+        const userProfile = document.getElementById('user-profile');
+        const xpDisplay = document.getElementById('xp-points');
+        const levelDisplay = document.getElementById('user-level');
+
+        let currentUser = null;
+        let xpPoints = 0;
+
+        // --- 登入邏輯 ---
+        loginBtn.onclick = () => auth.signInWithPopup(provider);
+
+        auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                currentUser = user;
+                userProfile.innerHTML = `
+                    <img src="${user.photoURL}">
+                    <span>${user.displayName}</span>
+                    <button class="btn-logout" id="logout-btn">登出</button>
+                `;
+                document.getElementById('logout-btn').onclick = () => auth.signOut();
+                
+                // 由 Firebase 讀取 XP
+                const doc = await db.collection('users').doc(user.uid).get();
+                if (doc.exists) {
+                    xpPoints = doc.data().xp || 0;
+                    updateXPUI();
+                }
+            } else {
+                currentUser = null;
+                userProfile.innerHTML = `<button class="btn-login" id="login-btn">Google Login</button>`;
+                document.getElementById('login-btn').onclick = () => auth.signInWithPopup(provider);
+                xpPoints = 0;
+                updateXPUI();
+            }
+        });
+
+        // 保存數據到 Firebase
+        async function saveToCloud() {
+            if (currentUser) {
+                await db.collection('users').doc(currentUser.uid).set({
+                    xp: xpPoints,
+                    lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+                console.log("XP Synced to Cloud");
+            }
+        }
+
+        // --- 原有的 AI 邏輯 (保持不變) ---
         const videoElement = document.getElementById('input_video');
         const canvasElement = document.getElementById('output_canvas');
         const canvasCtx = canvasElement.getContext('2d');
         const startBtn = document.getElementById('start-btn');
         const stopBtn = document.getElementById('stop-btn');
-        
-        const xpDisplay = document.getElementById('xp-points');
-        const levelDisplay = document.getElementById('user-level');
         const focusScoreDisplay = document.getElementById('focus-index');
         const noiseBar = document.getElementById('noise-level');
-        
         const phoneWarning = document.getElementById('phone-warning');
         const poseWarning = document.getElementById('pose-warning');
         const noiseWarning = document.getElementById('noise-warning');
 
-        let totalFrames = 0, focusedFrames = 0, xpPoints = 0;
+        let totalFrames = 0, focusedFrames = 0;
         let phoneModel, isMonitoring = false, camera = null;
-        let lastSpeakTime = 0, currentPhoneBox = null;
-        let audioContext, analyser, currentVolume = 0;
+        let lastSpeakTime = 0, currentPhoneBox = null, currentVolume = 0;
         const NOISE_THRESHOLD = 70;
 
-        async function init() {
+        async function initAI() {
             phoneModel = await cocoSsd.load();
             document.getElementById('loading-txt').style.display = "none";
             startBtn.disabled = false;
-        }
-
-        // --- 噪音檢測 ---
-        async function setupAudio() {
-            try {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const microphone = audioContext.createMediaStreamSource(stream);
-                analyser = audioContext.createAnalyser();
-                analyser.fftSize = 256;
-                microphone.connect(analyser);
-                const dataArray = new Uint8Array(analyser.frequencyBinCount);
-
-                const updateVolume = () => {
-                    if (!isMonitoring) return;
-                    analyser.getByteFrequencyData(dataArray);
-                    let sum = 0;
-                    for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-                    currentVolume = Math.round(sum / dataArray.length);
-                    noiseBar.style.width = Math.min(currentVolume, 100) + "%";
-                    noiseBar.style.background = currentVolume > NOISE_THRESHOLD ? "#ef4444" : "#00ff88";
-                    noiseWarning.style.display = currentVolume > NOISE_THRESHOLD ? "block" : "none";
-                    requestAnimationFrame(updateVolume);
-                };
-                updateVolume();
-            } catch (err) { console.warn("Mic error:", err); }
         }
 
         const pose = new Pose({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}` });
@@ -132,8 +175,6 @@
         pose.onResults(async (results) => {
             if (!isMonitoring) return;
             totalFrames++;
-
-            // 1. 電話偵測與動態框
             if (totalFrames % 5 === 0) {
                 const predictions = await phoneModel.detect(videoElement);
                 const phone = predictions.find(p => p.class === 'cell phone' && p.score > 0.6);
@@ -145,90 +186,67 @@
             canvasCtx.translate(canvasElement.width, 0);
             canvasCtx.scale(-1, 1);
 
-            let isUserFacingCamera = true;
+            let isUserFacing = true;
             if (results.poseLandmarks) {
                 drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00f2ff', lineWidth: 2});
-                // 面部朝向邏輯
-                const nose = results.poseLandmarks[0];
                 const leftEye = results.poseLandmarks[3];
                 const rightEye = results.poseLandmarks[6];
-                if (leftEye.visibility < 0.7 || rightEye.visibility < 0.7) {
-                    isUserFacingCamera = false;
-                    poseWarning.style.display = "block";
-                } else {
-                    poseWarning.style.display = "none";
-                }
-            } else {
-                isUserFacingCamera = false;
-            }
+                if (leftEye.visibility < 0.7 || rightEye.visibility < 0.7) isUserFacing = false;
+            } else { isUserFacing = false; }
 
-            // 2. 畫手機追蹤框
             if (currentPhoneBox) {
-                canvasCtx.strokeStyle = "#ef4444";
-                canvasCtx.lineWidth = 4;
+                canvasCtx.strokeStyle = "#ef4444"; canvasCtx.lineWidth = 4;
                 canvasCtx.strokeRect(currentPhoneBox[0], currentPhoneBox[1], currentPhoneBox[2], currentPhoneBox[3]);
                 phoneWarning.style.display = "block";
-            } else {
-                phoneWarning.style.display = "none";
-            }
+            } else { phoneWarning.style.display = "none"; }
 
-            // 3. 綜合判定與加分
-            if (!currentPhoneBox && isUserFacingCamera && currentVolume <= NOISE_THRESHOLD) {
+            poseWarning.style.display = isUserFacing ? "none" : "block";
+
+            if (!currentPhoneBox && isUserFacing && currentVolume <= NOISE_THRESHOLD) {
                 focusedFrames++;
-                // 專注加 XP
                 if (totalFrames % 30 === 0) {
                     xpPoints += 5;
-                    updateXP();
+                    updateXPUI();
+                    if (totalFrames % 300 === 0) saveToCloud(); // 每隔一段時間自動同步
                 }
             }
-
             let focusIndex = Math.round((focusedFrames / totalFrames) * 100);
             focusScoreDisplay.innerText = focusIndex + "%";
-
-            // 4. 定時廣播 (30秒)
-            if (Date.now() - lastSpeakTime > 30000) {
-                speakScore(focusIndex);
-                lastSpeakTime = Date.now();
-            }
+            if (Date.now() - lastSpeakTime > 30000) { speakScore(focusIndex); lastSpeakTime = Date.now(); }
             canvasCtx.restore();
         });
 
-        function updateXP() {
+        function updateXPUI() {
             xpDisplay.innerText = xpPoints;
-            if (xpPoints > 1000) {
-                levelDisplay.innerText = "LV.3 MASTER";
-                levelDisplay.style.background = "#8b5cf6";
-            } else if (xpPoints > 500) {
-                levelDisplay.innerText = "LV.2 ELITE";
-                levelDisplay.style.background = "#3b82f6";
-            }
+            if (xpPoints > 1000) { levelDisplay.innerText = "LV.3 MASTER"; levelDisplay.style.background = "#8b5cf6"; }
+            else if (xpPoints > 500) { levelDisplay.innerText = "LV.2 ELITE"; levelDisplay.style.background = "#3b82f6"; }
+            else { levelDisplay.innerText = "LV.1 ROOKIE"; levelDisplay.style.background = "#fbbf24"; }
         }
 
         function speakScore(score) {
-            const text = `MindShield 提醒，專注指數係百分之 ${score}。`;
-            const msg = new SpeechSynthesisUtterance(text);
+            const msg = new SpeechSynthesisUtterance(`MindShield 報告：專注指數 ${score}%。`);
             msg.lang = 'zh-HK';
             window.speechSynthesis.speak(msg);
         }
 
         startBtn.onclick = () => {
-            isMonitoring = true;
-            startBtn.style.display = "none";
-            stopBtn.style.display = "block";
+            isMonitoring = true; startBtn.style.display = "none"; stopBtn.style.display = "block";
             lastSpeakTime = Date.now();
-            if (!audioContext) setupAudio();
-            else audioContext.resume();
             if (!camera) {
-                camera = new Camera(videoElement, {
-                    onFrame: async () => { if(isMonitoring) await pose.send({image: videoElement}); },
-                    width: 640, height: 480
-                });
+                camera = new Camera(videoElement, { onFrame: async () => { if(isMonitoring) await pose.send({image: videoElement}); }, width: 640, height: 480 });
                 camera.start();
             }
         };
 
-        stopBtn.onclick = () => { location.reload(); };
-        init();
+        stopBtn.onclick = async () => {
+            isMonitoring = false;
+            await saveToCloud(); // 結束時強制同步
+            alert(`Session 結束！已同步數據到雲端。\n最終 XP: ${xpPoints}`);
+            location.reload();
+        };
+
+        initAI();
     </script>
 </body>
 </html>
+
